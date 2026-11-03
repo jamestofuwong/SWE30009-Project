@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Gateway – Usage Calculator (Design 3: Warm Editorial)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Inspired by Notion / Claude.ai: warm paper tones, serif headlines, rounded cards, a printed-invoice summary */
+  :root {
+    --paper: #faf7f2; --card: #fffdf9; --ink: #2b2623; --muted: #7a6f66; --line: #e8e0d4;
+    --accent: #c4552d; --accent-dark: #a2421f; --accent-soft: #f8e6dc; --sage: #5f7f5b; --sage-soft: #e5eedf;
+    --serif: Fraunces, "Iowan Old Style", Georgia, serif;
+    --sans: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.55 var(--sans); }
+  .page { max-width: 1040px; margin: 0 auto; padding: 56px 24px 96px; }
+
+  header.masthead { text-align: center; max-width: 640px; margin: 0 auto 44px; }
+  .eyebrow { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  h1 { font-family: var(--serif); font-weight: 600; font-size: clamp(34px, 5.5vw, 54px); line-height: 1.08; letter-spacing: -.02em; margin: 12px 0 16px; }
+  h1 span { font-style: italic; color: var(--accent); font-weight: 500; }
+  .lede { color: var(--muted); margin: 0; font-size: 18px; }
+
+  /* batch banner */
+  .batch-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px; background: var(--sage-soft); border: 1px solid #cfdcc7; border-radius: 16px; padding: 18px 22px; margin-bottom: 28px; }
+  .batch-bar strong { font-family: var(--serif); font-size: 19px; font-weight: 600; display: block; }
+  .batch-bar span.d { color: #4d6549; font-size: 15px; }
+  .check { display: inline-flex; align-items: center; gap: 12px; cursor: pointer; font-weight: 600; background: #fff; padding: 10px 18px; border-radius: 999px; border: 1px solid #cfdcc7; transition: .15s; }
+  .check:hover { border-color: var(--sage); }
+  .check input { position: absolute; opacity: 0; }
+  .box { width: 24px; height: 24px; border-radius: 7px; border: 2px solid #a9b9a3; display: grid; place-items: center; background: #fff; transition: .15s; flex: none; }
+  .box::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) scale(0); margin-top: -2px; transition: .15s; }
+  .check input:checked + .box { background: var(--sage); border-color: var(--sage); }
+  .check input:checked + .box::after { transform: rotate(45deg) scale(1); }
+  .check input:focus-visible + .box { outline: 3px solid rgba(95,127,91,.45); outline-offset: 2px; }
+
+  /* model cards */
+  .grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 0 rgba(43,38,35,.03); transition: transform .15s, box-shadow .15s, border-color .15s; }
+  .card:hover, .card:focus-within { transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(43,38,35,.25); border-color: #dccfbd; }
+  .card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .chip { font-size: 12px; font-weight: 600; padding: 3px 11px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-dark); }
+  .price { font-family: var(--serif); font-weight: 600; font-size: 18px; text-align: right; line-height: 1.1; }
+  .price small { display: block; font-family: var(--sans); font-weight: 400; font-size: 11px; color: var(--muted); }
+  html[data-batch="on"] .price [data-rate] { color: var(--sage); }
+  .card-title { font-family: var(--serif); font-size: 22px; font-weight: 600; line-height: 1.2; cursor: pointer; }
+  .card-note { margin: 0 0 14px; color: var(--muted); font-size: 15px; }
+  .field { margin-top: auto; display: flex; align-items: center; gap: 8px; background: var(--paper); border: 1.5px solid var(--line); border-radius: 12px; padding: 0 12px; transition: .15s; }
+  .field:focus-within { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 4px rgba(196,85,45,.15); }
+  .field input { flex: 1; min-width: 0; border: 0; background: transparent; font: 600 18px var(--sans); padding: 10px 0; outline: none; color: var(--ink); }
+  .field input::placeholder { color: #c3b8aa; }
+  .unit { font-size: 13px; color: var(--muted); white-space: nowrap; }
+
+  .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; margin: 40px 0 8px; }
+  button { font: 600 17px var(--sans); border-radius: 999px; padding: 14px 32px; cursor: pointer; transition: .15s; }
+  .primary { background: var(--accent); color: #fff; border: 0; box-shadow: 0 6px 16px -6px rgba(196,85,45,.7); }
+  .primary:hover { background: var(--accent-dark); transform: translateY(-1px); }
+  .ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .ghost:hover { background: #fff; border-color: #cbbfae; }
+  button:focus-visible { outline: 3px solid rgba(196,85,45,.4); outline-offset: 3px; }
+
+  /* invoice */
+  #summary { margin-top: 40px; }
+  .empty { max-width: 560px; margin: 0 auto; text-align: center; padding: 18px 22px; background: #fff3d6; border: 1px solid #f0dca3; border-radius: 14px; color: #7a5b08; }
+  .invoice { max-width: 640px; margin: 0 auto; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 40px 44px 36px; position: relative; box-shadow: 0 20px 40px -24px rgba(43,38,35,.35);
+    background-image: linear-gradient(var(--card), var(--card)); }
+  .invoice h2 { font-family: var(--serif); font-size: 28px; margin: 0; font-weight: 600; }
+  .invoice .meta { color: var(--muted); font-size: 14px; margin: 2px 0 22px; padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
+  .items { list-style: none; margin: 0; padding: 0; }
+  .item { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 12px 0; border-bottom: 1px dotted #d6cbbb; }
+  .item .what strong { display: block; font-family: var(--serif); font-size: 18px; font-weight: 600; }
+  .item .what small { color: var(--muted); font-size: 14px; }
+  .item .cost { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .totals { margin: 18px 0 0; }
+  .totals div { display: flex; justify-content: space-between; padding: 4px 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .totals dt, .totals dd { margin: 0; }
+  .totals .save { color: var(--sage); font-weight: 600; }
+  .totals .grand { margin-top: 12px; padding-top: 16px; border-top: 2px solid var(--ink); align-items: baseline; color: var(--ink); }
+  .totals .grand dt { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+  .totals .grand dd { font-family: var(--serif); font-size: 34px; font-weight: 600; color: var(--accent); letter-spacing: -.02em; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 560px) {
+    .page { padding-top: 36px; }
+    .invoice { padding: 28px 22px; }
+    .batch-bar { flex-direction: column; align-items: flex-start; }
+    .actions button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="masthead">
+    <div class="eyebrow">AI Gateway</div>
+    <h1>What did your team <span>actually</span> use?</h1>
+    <p class="lede">Tell us how many million tokens went through each model and we’ll draw up a clear summary, with 6% SST included.</p>
+  </header>
+
+  <form id="calc" novalidate>
+
+    <div class="batch-bar">
+      <div>
+        <strong>Running jobs through the Batch API?</strong>
+        <span class="d">Batch requests are half price on every model.</span>
+      </div>
+      <label class="check">
+        <input type="checkbox" id="batch" name="batch">
+        <span class="box" aria-hidden="true"></span>
+        Apply 50% batch discount
+      </label>
+    </div>
+
+    <ul class="grid" aria-label="Available models">
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">Anthropic</span>
+            <span class="price"><span data-rate data-base="30.00">$30.00</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m1" class="card-title">Claude Opus 5.5</label>
+          <p class="card-note">Deep reasoning &amp; agents</p>
+          <div class="field"><input id="m1" name="m1" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="Claude Opus 5.5" data-provider="Anthropic" data-price="30.00" aria-label="Claude Opus 5.5 usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">Anthropic</span>
+            <span class="price"><span data-rate data-base="9.00">$9.00</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m2" class="card-title">Claude Sonnet 5.5</label>
+          <p class="card-note">Balanced all-rounder</p>
+          <div class="field"><input id="m2" name="m2" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="Claude Sonnet 5.5" data-provider="Anthropic" data-price="9.00" aria-label="Claude Sonnet 5.5 usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">Anthropic</span>
+            <span class="price"><span data-rate data-base="2.00">$2.00</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m3" class="card-title">Claude Haiku 5.5</label>
+          <p class="card-note">Fast &amp; lightweight</p>
+          <div class="field"><input id="m3" name="m3" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="Claude Haiku 5.5" data-provider="Anthropic" data-price="2.00" aria-label="Claude Haiku 5.5 usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">OpenAI</span>
+            <span class="price"><span data-rate data-base="11.25">$11.25</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m4" class="card-title">GPT-5</label>
+          <p class="card-note">General flagship</p>
+          <div class="field"><input id="m4" name="m4" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="GPT-5" data-provider="OpenAI" data-price="11.25" aria-label="GPT-5 usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">OpenAI</span>
+            <span class="price"><span data-rate data-base="1.25">$1.25</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m5" class="card-title">GPT-5 mini</label>
+          <p class="card-note">Low-cost chat</p>
+          <div class="field"><input id="m5" name="m5" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="GPT-5 mini" data-provider="OpenAI" data-price="1.25" aria-label="GPT-5 mini usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">Google</span>
+            <span class="price"><span data-rate data-base="8.75">$8.75</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m6" class="card-title">Gemini 2.5 Pro</label>
+          <p class="card-note">Long-context analysis</p>
+          <div class="field"><input id="m6" name="m6" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="Gemini 2.5 Pro" data-provider="Google" data-price="8.75" aria-label="Gemini 2.5 Pro usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">Meta</span>
+            <span class="price"><span data-rate data-base="0.80">$0.80</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m7" class="card-title">Llama 4 Maverick</label>
+          <p class="card-note">Open-weight workhorse</p>
+          <div class="field"><input id="m7" name="m7" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="Llama 4 Maverick" data-provider="Meta" data-price="0.80" aria-label="Llama 4 Maverick usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+        <li class="card">
+          <div class="card-top">
+            <span class="chip">Mistral</span>
+            <span class="price"><span data-rate data-base="4.00">$4.00</span><small>/ 1M tokens</small></span>
+          </div>
+          <label for="m8" class="card-title">Mistral Large 3</label>
+          <p class="card-note">Multilingual &amp; code</p>
+          <div class="field"><input id="m8" name="m8" type="number" min="0" step="any" inputmode="decimal" placeholder="0" data-model data-name="Mistral Large 3" data-provider="Mistral" data-price="4.00" aria-label="Mistral Large 3 usage in millions of tokens"><span class="unit">million tokens</span></div>
+        </li>
+    </ul>
+
+    <div class="actions">
+      <button type="submit" id="calculate" class="primary">Calculate Usage</button>
+      <button type="reset" class="ghost">Start over</button>
+    </div>
+
+    <section id="summary" aria-live="polite" aria-labelledby="sum-h">
+      <div class="empty" id="empty" hidden>You haven’t entered any usage yet — add an amount to at least one model.</div>
+
+      <div class="invoice" id="results" hidden>
+        <h2 id="sum-h">Usage summary</h2>
+        <p class="meta">Prices in USD · Sales &amp; Service Tax at 6%</p>
+        <ul class="items" id="rows"></ul>
+        <dl class="totals">
+          <div><dt>List price</dt><dd id="list-subtotal"></dd></div>
+          <div class="save" id="discount-row" hidden><dt>Batch API discount (50%)</dt><dd id="discount"></dd></div>
+          <div><dt>Subtotal</dt><dd id="subtotal"></dd></div>
+          <div><dt>SST (6%)</dt><dd id="sst"></dd></div>
+          <div class="grand"><dt>Total to pay</dt><dd id="total"></dd></div>
+        </dl>
+      </div>
+    </section>
+
+  </form>
+</div>
+
+<template id="row-tpl">
+  <li class="item">
+    <span class="what"><strong data-field="name"></strong>
+      <small><span data-field="provider"></span> · <span data-field="usage"></span> at <span data-field="rate"></span></small></span>
+    <span class="cost" data-field="cost"></span>
+  </li>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
