@@ -126,10 +126,18 @@ def main():
     ap.add_argument("--report-dir", default=str(REPORT_DIR), help="where to write results.json and screenshots")
     args = ap.parse_args()
 
-    try:
-        urllib.request.urlopen(args.url, timeout=5)
-    except OSError:
-        sys.exit(f"Cannot reach {args.url} - start the app first with `npm run dev`.")
+    # The app may still be starting up, so retry for a few seconds before giving up.
+    error = None
+    for _ in range(10):
+        try:
+            urllib.request.urlopen(args.url, timeout=5)
+            error = None
+            break
+        except OSError as e:
+            error = e
+            time.sleep(2)
+    if error:
+        sys.exit(f"Cannot reach {args.url} ({error}) - start the app first with `npm run dev`.")
 
     report_dir = Path(args.report_dir)
     (report_dir / "screenshots").mkdir(parents=True, exist_ok=True)

@@ -56,37 +56,47 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # e) Start the web server in the background.
+      # e) + f) Start the web server and run the tests in ONE step.
+      #    On Windows the background server can be lost between steps, so we
+      #    keep it alive for exactly as long as the tests need it.
       #    "npm run dev" applies the local D1 migrations, then starts the
       #    API (port 8787) and the frontend (port 5173).
       #    On Windows, npm is a .cmd file, so we start "npm.cmd".
-      - name: Start web server
+      #    The test script reads tests/test_cases.csv, opens Chrome, loads the
+      #    app, runs every test case and prints PASS/FAIL for each. It also
+      #    saves results.json and screenshots to tests/report/.
+      #    The step fails if the server does not start or any test fails.
+      - name: Start web server and run Selenium tests
         env:
           WRANGLER_SEND_METRICS: "false"
         run: |
-          Start-Process -FilePath npm.cmd -ArgumentList "run", "dev" `
-            -RedirectStandardOutput server.log -RedirectStandardError server.err.log -NoNewWindow
+          $server = Start-Process -FilePath npm.cmd -ArgumentList "run", "dev" `
+            -RedirectStandardOutput server.log -RedirectStandardError server.err.log -NoNewWindow -PassThru
+
           # Wait up to 2 minutes for both the frontend and the API to respond.
-          for ($i = 0; $i -lt 60; $i++) {
+          $ready = $false
+          for ($i = 0; $i -lt 60 -and -not $ready; $i++) {
             try {
               Invoke-WebRequest -Uri http://localhost:5173 -UseBasicParsing | Out-Null
               Invoke-WebRequest -Uri http://localhost:8787/api/models -UseBasicParsing | Out-Null
-              Write-Host "Server is ready"
-              exit 0
+              $ready = $true
             } catch {
               Start-Sleep -Seconds 2
             }
           }
-          Write-Host "Server did not start in time"
-          Get-Content server.log, server.err.log
-          exit 1
 
-      # f) Run the test script. It reads tests/test_cases.csv, opens Chrome,
-      #    loads the app, runs every test case and prints PASS/FAIL for each.
-      #    It also saves results.json and screenshots to tests/report/.
-      #    The step fails if any test case fails.
-      - name: Run Selenium tests
-        run: python tests/run_tests.py --headless
+          $code = 1
+          if ($ready) {
+            Write-Host "Server is ready"
+            python tests/run_tests.py --headless
+            $code = $LASTEXITCODE
+          } else {
+            Write-Host "Server did not start in time"
+          }
+
+          # Stop the server and everything it started.
+          taskkill /PID $server.Id /T /F | Out-Null
+          exit $code
 
       # Build the PDF report from the test results. "always()" makes this run
       # even when tests failed, so a failing run still gets a report.
