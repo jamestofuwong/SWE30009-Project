@@ -1,4 +1,4 @@
-import type { HistoryEntry, Model, Summary } from './types';
+import type { Model, Summary } from './types';
 
 const BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
 
@@ -17,8 +17,3 @@ export const getModels = () =>
 
 export const calculate = (batch: boolean, usage: { modelId: string; tokensMillions: number }[]) =>
   request<Summary>('/api/calculate', { method: 'POST', body: JSON.stringify({ batch, usage }) });
-
-export const getHistory = () =>
-  request<{ calculations: HistoryEntry[] }>('/api/calculations?limit=8').then((r) => r.calculations);
-
-export const getCalculation = (id: string) => request<Summary>(`/api/calculations/${id}`);

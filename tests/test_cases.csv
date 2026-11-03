@@ -1,0 +1,11 @@
+test_id,description,batch,usage,after_calculate,expected_lines,expected_list,expected_discount,expected_subtotal,expected_sst,expected_total,expected_notice
+TC01,Standard pricing for a single model (baseline),false,claude-sonnet-5-5=1,,1,$9.00,,$9.00,$0.54,$9.54,
+TC02,Batch API halves the price and shows the discount row,true,claude-opus-5-5=1,,1,$30.00,$15.00,$15.00,$0.90,$15.90,
+TC03,Multiple models at standard price are itemised and summed,false,claude-opus-5-5=2.5;gpt-5=4;claude-haiku-5-5=10,,3,$140.00,,$140.00,$8.40,$148.40,
+TC04,Multiple models with batch discount applied to every line,true,claude-opus-5-5=2.5;gpt-5=4;claude-haiku-5-5=10,,3,$140.00,$70.00,$70.00,$4.20,$74.20,
+TC05,Fractional usage - line cost and SST round to the nearest cent,false,gpt-5-mini=0.333,,1,$0.42,,$0.42,$0.03,$0.45,
+TC06,Batch rounding - per-line cost rounded before discount and SST,true,gpt-5=1.1,,1,$12.38,$6.19,$6.19,$0.37,$6.56,
+TC07,Large usage - thousands separators and no overflow,false,claude-opus-5-5=1000,,1,"$30,000.00",,"$30,000.00","$1,800.00","$31,800.00",
+TC08,Zero-token models are ignored and not listed in the summary,false,claude-opus-5-5=0;claude-sonnet-5-5=2,,1,$18.00,,$18.00,$1.08,$19.08,
+TC09,Submitting with no usage shows a validation message and no totals,false,,,0,,,,,,No usage entered — add tokens to at least one model.
+TC10,Changing the batch toggle after calculating marks the summary stale without changing it,false,claude-sonnet-5-5=1,toggle_batch,1,$9.00,,$9.00,$0.54,$9.54,Inputs changed — press Calculate Usage to refresh this summary.

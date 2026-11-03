@@ -1,5 +1,8 @@
 # AI Gateway – Usage Calculator
 
+[![Test Ubuntu](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-ubuntu.yml/badge.svg)](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-ubuntu.yml)
+[![Test Windows](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-windows.yml/badge.svg)](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-windows.yml)
+
 Vue 3 (Cloudflare Pages) → Hono API (Cloudflare Worker) → Cloudflare D1.
 
 ```
@@ -12,19 +15,16 @@ markups/   Original static design explorations
 | Method | Path | Purpose |
 |---|---|---|
 | GET  | `/api/models` | Model list, price per 1M tokens (cents), SST rate |
-| POST | `/api/calculate` | `{ batch: boolean, usage: [{ modelId, tokensMillions }] }` → itemised summary (batch = 50% off, +6% SST); stored in D1 |
-| GET  | `/api/calculations?limit=10` | Recent calculations |
-| GET  | `/api/calculations/:id` | One stored calculation |
+| POST | `/api/calculate` | `{ batch: boolean, usage: [{ modelId, tokensMillions }] }` → itemised summary (batch = 50% off, +6% SST) |
 
 All money is integer cents; each line is rounded to the cent, then SST is applied to the subtotal.
 
 ## Local development
 ```bash
 npm install
-npm run db:migrate:local   # creates the local D1 db and seeds models
-npm run dev:api            # worker on http://localhost:8787
-npm run dev:web            # Vite on http://localhost:5173 (proxies /api to the worker)
+npm run dev   # applies local D1 migrations, then starts the worker (:8787) and Vite (:5173) together
 ```
+Individual pieces: `npm run db:migrate:local`, `npm run dev:api`, `npm run dev:web`.
 
 ## Deploy
 1. **Database + API**
@@ -43,3 +43,12 @@ npm run dev:web            # Vite on http://localhost:5173 (proxies /api to the 
    ```
    Or connect the repo in the Pages dashboard: root `apps/web`, build command `npm run build`,
    output `dist`, environment variable `VITE_API_URL`.
+
+## Tests
+Selenium functional tests (10 cases in `tests/test_cases.csv`). With the app running (`npm run dev`):
+```bash
+npm run test:selenium -- --headless
+```
+The **Test Ubuntu** and **Test Windows** GitHub Actions workflows run them on `ubuntu-latest` and `windows-latest`; trigger them manually from the Actions tab.
+
+Each run writes `tests/report/results.json` and screenshots. `python tests/generate_report.py` turns them into `tests/report/test-report.pdf` (summary, pass/fail charts, failures with reasons, execution times, expected vs actual, environment, screenshots). In CI, the report is uploaded as the `test-report-ubuntu` / `test-report-windows` build artifact on every run, including failed ones.

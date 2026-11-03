@@ -1,0 +1,99 @@
+# Runs the Selenium functional tests on Ubuntu.
+name: Test Ubuntu
+
+# Manual trigger only: use the "Run workflow" button in the Actions tab.
+on:
+  workflow_dispatch:
+
+jobs:
+  selenium-tests:
+    # Use the latest Ubuntu runner.
+    runs-on: ubuntu-latest
+    # Stop the job automatically if it runs longer than 30 minutes.
+    timeout-minutes: 30
+
+    steps:
+      # a) Download the repository code onto the runner.
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # b) Install Python (needed for the Selenium test script).
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+
+      # c) Install the Python dependencies listed in requirements.txt.
+      - name: Install Python dependencies
+        run: pip install -r tests/requirements.txt
+
+      # d) Make sure Chrome and a matching ChromeDriver are available.
+      - name: Set up Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
+      # Node.js is needed to run the web app (Vite frontend + Hono worker).
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # e) Start the web server in the background.
+      #    "npm run dev" applies the local D1 migrations, then starts the
+      #    API (port 8787) and the frontend (port 5173).
+      - name: Start web server
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          nohup npm run dev > server.log 2>&1 &
+          # Wait up to 2 minutes for both the frontend and the API to respond.
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:5173 > /dev/null && curl -sf http://localhost:8787/api/models > /dev/null; then
+              echo "Server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Server did not start in time"
+          cat server.log
+          exit 1
+
+      # f) Run the test script. It reads tests/test_cases.csv, opens Chrome,
+      #    loads the app, runs every test case and prints PASS/FAIL for each.
+      #    It also saves results.json and screenshots to tests/report/.
+      #    The step fails if any test case fails.
+      - name: Run Selenium tests
+        run: python tests/run_tests.py --headless
+
+      # Build the PDF report from the test results. "always()" makes this run
+      # even when tests failed, so a failing run still gets a report.
+      - name: Generate PDF test report
+        if: always() && hashFiles('tests/report/results.json') != ''
+        run: |
+          python tests/generate_report.py
+          cat tests/report/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Upload the report as a build artifact (download it from the run page).
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-ubuntu
+          path: |
+            tests/report/test-report.pdf
+            tests/report/results.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      # If something went wrong, show the server output to help debugging.
+      - name: Show server log on failure
+        if: failure()
+        run: cat server.log

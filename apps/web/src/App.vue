@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { calculate, getCalculation, getHistory, getModels } from './api';
+import { calculate, getModels } from './api';
 import { millions, money, moneyRate } from './money';
-import type { HistoryEntry, Model, Summary } from './types';
+import type { Model, Summary } from './types';
 
 const SST_PCT = 6;
 
@@ -10,11 +10,9 @@ const models = ref<Model[]>([]);
 const usage = ref<Record<string, string>>({});
 const batch = ref(false);
 const summary = ref<Summary | null>(null);
-const history = ref<HistoryEntry[]>([]);
 
 const loading = ref(true);
 const busy = ref(false);
-const online = ref(true);
 const loadError = ref('');
 const formError = ref('');
 const stale = ref(false);
@@ -29,20 +27,14 @@ const entries = computed(() =>
 // Editing inputs or the batch toggle makes the shown summary out of date.
 watch([usage, batch], () => { if (summary.value) stale.value = true; }, { deep: true });
 
-async function loadHistory() {
-  try { history.value = await getHistory(); } catch { /* history is non-critical */ }
-}
-
 onMounted(async () => {
   try {
     models.value = (await getModels()).models;
   } catch (e) {
-    online.value = false;
     loadError.value = (e as Error).message || 'Could not reach the gateway API.';
   } finally {
     loading.value = false;
   }
-  loadHistory();
 });
 
 async function onCalculate() {
@@ -56,7 +48,6 @@ async function onCalculate() {
   try {
     summary.value = await calculate(batch.value, entries.value);
     stale.value = false;
-    loadHistory();
   } catch (e) {
     formError.value = (e as Error).message;
   } finally {
@@ -71,34 +62,14 @@ function onReset() {
   formError.value = '';
   stale.value = false;
 }
-
-async function openHistory(id: string) {
-  try {
-    const s = await getCalculation(id);
-    summary.value = s;
-    batch.value = s.batch;
-    usage.value = Object.fromEntries(s.items.map((i) => [i.modelId, String(i.tokensMillions)]));
-    stale.value = false;
-    formError.value = '';
-  } catch (e) {
-    formError.value = (e as Error).message;
-  }
-}
-
-const when = (iso: string) =>
-  new Date(iso).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 </script>
 
 <template>
   <div class="shell">
-    <div class="topbar">
-      <span><span class="tri" aria-hidden="true"></span>ai-gateway / usage</span>
-      <span class="status" :class="{ off: !online }">{{ online ? `${models.length} models online` : 'api unreachable' }}</span>
-    </div>
-
     <h1>Calculate your<br>gateway usage.</h1>
     <p class="lede">Enter total tokens (in millions) consumed per model. Get an itemised summary and the final amount payable, SST included.</p>
 
+    <div class="layout">
     <form novalidate @submit.prevent="onCalculate" @reset.prevent="onReset">
       <section class="box" aria-labelledby="models-h">
         <div class="box-head">
@@ -106,7 +77,7 @@ const when = (iso: string) =>
           <label class="toggle">
             <input v-model="batch" type="checkbox" />
             <span class="sw" aria-hidden="true"></span>
-            Batch API <span class="tag" :class="{ on: batch }">−50%</span>
+            Batch API <span class="hint" :class="{ on: batch }">50% off</span>
           </label>
         </div>
 
@@ -140,7 +111,6 @@ const when = (iso: string) =>
     <section class="box" aria-labelledby="sum-h" aria-live="polite">
       <div class="box-head">
         <h2 id="sum-h">Summary</h2>
-        <span class="tag">SST {{ SST_PCT }}%</span>
       </div>
 
       <div v-if="formError" class="notice warn">! {{ formError }}</div>
@@ -166,18 +136,6 @@ const when = (iso: string) =>
       </template>
       <div v-else-if="!formError" class="skeleton">Fill in usage and press Calculate Usage.</div>
     </section>
-
-    <section v-if="history.length" class="box" aria-labelledby="hist-h">
-      <div class="box-head"><h2 id="hist-h">Recent calculations</h2></div>
-      <ul class="history">
-        <li v-for="h in history" :key="h.id">
-          <button type="button" @click="openHistory(h.id)">
-            <span>{{ when(h.createdAt) }}</span>
-            <span>{{ h.itemCount }} model{{ h.itemCount === 1 ? '' : 's' }}{{ h.batch ? ' · batch' : '' }}</span>
-            <span class="t">{{ money(h.totalCents) }}</span>
-          </button>
-        </li>
-      </ul>
-    </section>
+    </div>
   </div>
 </template>

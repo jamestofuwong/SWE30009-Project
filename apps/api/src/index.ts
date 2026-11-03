@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { calculate, SST_RATE, type ModelRow, type Totals } from './pricing';
+import { calculate, SST_RATE, type ModelRow } from './pricing';
 
 type Bindings = { DB: D1Database; ALLOWED_ORIGIN?: string };
 
@@ -29,7 +29,7 @@ app.get('/api/models', async (c) => {
   return c.json({ models: results, sstRate: SST_RATE, batchDiscount: 0.5 });
 });
 
-/** Compute a summary for the given usage, store it, and return it. */
+/** Compute a summary for the given usage. */
 app.post('/api/calculate', async (c) => {
   let body: unknown;
   try {
@@ -74,59 +74,7 @@ app.post('/api/calculate', async (c) => {
     batch,
   );
 
-  const id = crypto.randomUUID();
-  const createdAt = new Date().toISOString();
-  await c.env.DB.batch([
-    c.env.DB.prepare(
-      `INSERT INTO calculations (id, created_at, batch, list_cents, discount_cents, subtotal_cents, sst_cents, total_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, createdAt, batch ? 1 : 0, totals.listCents, totals.discountCents, totals.subtotalCents, totals.sstCents, totals.totalCents),
-    ...totals.items.map((it) =>
-      c.env.DB.prepare(
-        `INSERT INTO calculation_items (calculation_id, model_id, model_name, provider, tokens_millions, unit_price_cents, cost_cents)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(id, it.modelId, it.name, it.provider, it.tokensMillions, it.unitPriceCents, it.costCents),
-    ),
-  ]);
-
-  return c.json(present(id, createdAt, batch, totals), 201);
-});
-
-/** Recent calculations (newest first). */
-app.get('/api/calculations', async (c) => {
-  const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? '10', 10) || 10, 1), 50);
-  const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.created_at AS createdAt, c.batch, c.total_cents AS totalCents,
-            (SELECT COUNT(*) FROM calculation_items i WHERE i.calculation_id = c.id) AS itemCount
-       FROM calculations c ORDER BY c.created_at DESC LIMIT ?`,
-  )
-    .bind(limit)
-    .all<{ batch: number }>();
-  return c.json({ calculations: results.map((r) => ({ ...r, batch: !!r.batch })) });
-});
-
-/** One stored calculation, in the same shape /api/calculate returns. */
-app.get('/api/calculations/:id', async (c) => {
-  const id = c.req.param('id');
-  const calc = await c.env.DB.prepare('SELECT * FROM calculations WHERE id = ?').bind(id).first<Record<string, number | string>>();
-  if (!calc) return c.json({ error: 'Not found.' }, 404);
-  const { results } = await c.env.DB.prepare(
-    `SELECT model_id AS modelId, model_name AS name, provider, tokens_millions AS tokensMillions,
-            unit_price_cents AS unitPriceCents, cost_cents AS costCents
-       FROM calculation_items WHERE calculation_id = ? ORDER BY id`,
-  )
-    .bind(id)
-    .all();
-  return c.json(
-    present(id, calc.created_at as string, !!calc.batch, {
-      items: results as unknown as Totals['items'],
-      listCents: calc.list_cents as number,
-      discountCents: calc.discount_cents as number,
-      subtotalCents: calc.subtotal_cents as number,
-      sstCents: calc.sst_cents as number,
-      totalCents: calc.total_cents as number,
-    }),
-  );
+  return c.json({ batch, sstRate: SST_RATE, ...totals });
 });
 
 app.notFound((c) => c.json({ error: 'Not found.' }, 404));
@@ -134,9 +82,5 @@ app.onError((err, c) => {
   console.error(err);
   return c.json({ error: 'Internal server error.' }, 500);
 });
-
-function present(id: string, createdAt: string, batch: boolean, t: Totals) {
-  return { id, createdAt, batch, sstRate: SST_RATE, ...t };
-}
 
 export default app;

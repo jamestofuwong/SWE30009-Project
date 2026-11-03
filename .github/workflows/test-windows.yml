@@ -1,0 +1,115 @@
+# Runs the Selenium functional tests on Windows.
+name: Test Windows
+
+# Manual trigger only: use the "Run workflow" button in the Actions tab.
+on:
+  workflow_dispatch:
+
+jobs:
+  selenium-tests:
+    # Use the latest Windows runner.
+    runs-on: windows-latest
+    # Stop the job automatically if it runs longer than 30 minutes.
+    timeout-minutes: 30
+
+    # Windows consoles default to a legacy encoding; force UTF-8 so Python
+    # can print characters like "—" without crashing.
+    env:
+      PYTHONUTF8: "1"
+
+    # Use PowerShell for every "run" step (the Windows default).
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      # a) Download the repository code onto the runner.
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      # b) Install Python (needed for the Selenium test script).
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: tests/requirements.txt
+
+      # c) Install the Python dependencies listed in requirements.txt.
+      - name: Install Python dependencies
+        run: pip install -r tests/requirements.txt
+
+      # d) Make sure Chrome and a matching ChromeDriver are available.
+      - name: Set up Chrome and ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+          install-chromedriver: true
+
+      # Node.js is needed to run the web app (Vite frontend + Hono worker).
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # e) Start the web server in the background.
+      #    "npm run dev" applies the local D1 migrations, then starts the
+      #    API (port 8787) and the frontend (port 5173).
+      #    On Windows, npm is a .cmd file, so we start "npm.cmd".
+      - name: Start web server
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          Start-Process -FilePath npm.cmd -ArgumentList "run", "dev" `
+            -RedirectStandardOutput server.log -RedirectStandardError server.err.log -NoNewWindow
+          # Wait up to 2 minutes for both the frontend and the API to respond.
+          for ($i = 0; $i -lt 60; $i++) {
+            try {
+              Invoke-WebRequest -Uri http://localhost:5173 -UseBasicParsing | Out-Null
+              Invoke-WebRequest -Uri http://localhost:8787/api/models -UseBasicParsing | Out-Null
+              Write-Host "Server is ready"
+              exit 0
+            } catch {
+              Start-Sleep -Seconds 2
+            }
+          }
+          Write-Host "Server did not start in time"
+          Get-Content server.log, server.err.log
+          exit 1
+
+      # f) Run the test script. It reads tests/test_cases.csv, opens Chrome,
+      #    loads the app, runs every test case and prints PASS/FAIL for each.
+      #    It also saves results.json and screenshots to tests/report/.
+      #    The step fails if any test case fails.
+      - name: Run Selenium tests
+        run: python tests/run_tests.py --headless
+
+      # Build the PDF report from the test results. "always()" makes this run
+      # even when tests failed, so a failing run still gets a report.
+      - name: Generate PDF test report
+        if: always() && hashFiles('tests/report/results.json') != ''
+        run: |
+          python tests/generate_report.py
+          # Also show the summary on the workflow run page.
+          Get-Content -Raw tests/report/summary.md | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+
+      # Upload the report as a build artifact (download it from the run page).
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-windows
+          path: |
+            tests/report/test-report.pdf
+            tests/report/results.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      # If something went wrong, show the server output to help debugging.
+      - name: Show server log on failure
+        if: failure()
+        run: Get-Content server.log, server.err.log -ErrorAction SilentlyContinue
