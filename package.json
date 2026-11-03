@@ -1,0 +1,12 @@
+{
+  "name": "ai-gateway-usage",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "db:migrate:local": "npm run db:migrate:local -w apps/api",
+    "build": "npm run build -w apps/web",
+    "typecheck": "npm run typecheck -w apps/api"
+  }
+}
