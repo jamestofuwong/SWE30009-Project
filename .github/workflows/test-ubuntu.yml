@@ -30,7 +30,10 @@ jobs:
         run: pip install -r tests/requirements.txt
 
       # d) Make sure Chrome and a matching ChromeDriver are available.
+      #    The step outputs the paths to both, which the test step passes on
+      #    to Selenium so it uses this exact Chrome + ChromeDriver pair.
       - name: Set up Chrome and ChromeDriver
+        id: setup-chrome
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
@@ -71,6 +74,9 @@ jobs:
       #    It also saves results.json and screenshots to tests/report/.
       #    The step fails if any test case fails.
       - name: Run Selenium tests
+        env:
+          CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
+          CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: python tests/run_tests.py --headless
 
       # Build the PDF report from the test results. "always()" makes this run

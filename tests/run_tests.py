@@ -11,6 +11,7 @@ Summary panel against the expected values and prints PASS/FAIL per test case.
 import argparse
 import csv
 import json
+import os
 import platform
 import sys
 import time
@@ -20,6 +21,7 @@ from pathlib import Path
 
 from selenium import webdriver
 from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -44,7 +46,12 @@ def launch_browser(headless):
         opts.add_argument("--no-sandbox")  # needed on CI runners
         opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--window-size=1280,900")
-    return webdriver.Chrome(options=opts)  # Selenium Manager fetches the driver
+    # CI sets these so the browser and driver are a matching pair; locally, Selenium
+    # Manager finds Chrome and downloads the right driver by itself.
+    if os.environ.get("CHROME_BIN"):
+        opts.binary_location = os.environ["CHROME_BIN"]
+    service = Service(os.environ["CHROMEDRIVER_PATH"]) if os.environ.get("CHROMEDRIVER_PATH") else Service()
+    return webdriver.Chrome(options=opts, service=service)
 
 
 def parse_usage(text):
