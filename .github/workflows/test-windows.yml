@@ -40,14 +40,15 @@ jobs:
         run: pip install -r tests/requirements.txt
 
       # d) Make sure Chrome and a matching ChromeDriver are available.
-      #    The step outputs the paths to both, which the test step passes on
-      #    to Selenium so it uses this exact Chrome + ChromeDriver pair.
-      - name: Set up Chrome and ChromeDriver
+      #    setup-chrome provides Chrome and outputs its path. We do NOT install
+      #    ChromeDriver here: runners can already have a different Chrome
+      #    version, and a mismatched driver fails. Instead, Selenium Manager
+      #    (built into Selenium) downloads the driver that matches this Chrome.
+      - name: Set up Chrome
         id: setup-chrome
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
-          install-chromedriver: true
 
       # Node.js is needed to run the web app (Vite frontend + Hono worker).
       - name: Set up Node.js
@@ -73,7 +74,6 @@ jobs:
         env:
           WRANGLER_SEND_METRICS: "false"
           CHROME_BIN: ${{ steps.setup-chrome.outputs.chrome-path }}
-          CHROMEDRIVER_PATH: ${{ steps.setup-chrome.outputs.chromedriver-path }}
         run: |
           $server = Start-Process -FilePath npm.cmd -ArgumentList "run", "dev" `
             -RedirectStandardOutput server.log -RedirectStandardError server.err.log -NoNewWindow -PassThru
