@@ -3,12 +3,11 @@
 [![Test Ubuntu](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-ubuntu.yml/badge.svg)](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-ubuntu.yml)
 [![Test Windows](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-windows.yml/badge.svg)](https://github.com/jamestofuwong/SWE30009-Project/actions/workflows/test-windows.yml)
 
-Vue 3 (Cloudflare Pages) → Hono API (Cloudflare Worker) → Cloudflare D1.
+Vue 3 (Cloudflare Pages) → Hono API (Cloudflare Worker).
 
 ```
-apps/api   Hono worker + D1 migrations (schema + 8 seeded models)
+apps/api   Hono worker (the 8 models and their prices are a constant in src/models.ts)
 apps/web   Vue 3 + Vite frontend (dark "developer" design)
-markups/   Original static design explorations
 ```
 
 ## API
@@ -22,17 +21,15 @@ All money is integer cents; each line is rounded to the cent, then SST is applie
 ## Local development
 ```bash
 npm install
-npm run dev   # applies local D1 migrations, then starts the worker (:8787) and Vite (:5173) together
+npm run dev   # starts the worker (:8787) and Vite (:5173) together
 ```
-Individual pieces: `npm run db:migrate:local`, `npm run dev:api`, `npm run dev:web`.
+Individual pieces: `npm run dev:api`, `npm run dev:web`.
 
 ## Deploy
-1. **Database + API**
+1. **API**
    ```bash
    cd apps/api
    npx wrangler login
-   npx wrangler d1 create ai-gateway          # copy the database_id into wrangler.toml
-   npm run db:migrate:remote
    # set ALLOWED_ORIGIN in wrangler.toml to your Pages URL, then:
    npm run deploy                              # prints https://ai-gateway-api.<sub>.workers.dev
    ```

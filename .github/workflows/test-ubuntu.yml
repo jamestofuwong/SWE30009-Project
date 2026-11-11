@@ -51,8 +51,8 @@ jobs:
         run: npm ci
 
       # e) Start the web server in the background.
-      #    "npm run dev" applies the local D1 migrations, then starts the
-      #    API (port 8787) and the frontend (port 5173).
+      #    "npm run dev" starts the API (port 8787) and the
+      #    frontend (port 5173).
       - name: Start web server
         env:
           WRANGLER_SEND_METRICS: "false"

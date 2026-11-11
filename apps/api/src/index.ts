@@ -1,11 +1,13 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { calculate, SST_RATE, type ModelRow } from './pricing';
+import { MODELS } from './models';
+import { calculate, SST_RATE } from './pricing';
 
-type Bindings = { DB: D1Database; ALLOWED_ORIGIN?: string };
+type Bindings = { ALLOWED_ORIGIN?: string };
 
 const MAX_MILLIONS = 1_000_000; // sanity cap per model
 const MAX_ITEMS = 50;
+const MODEL_IDS = new Set(MODELS.map((m) => m.id));
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -20,14 +22,8 @@ app.use('/api/*', (c, next) =>
 
 app.get('/api/health', (c) => c.json({ ok: true }));
 
-/** List active models with their (non-batch) price per 1M tokens. */
-app.get('/api/models', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, name, provider, description, price_cents_per_million AS priceCents
-       FROM models WHERE active = 1 ORDER BY sort_order, name`,
-  ).all();
-  return c.json({ models: results, sstRate: SST_RATE, batchDiscount: 0.5 });
-});
+/** List the available models with their (non-batch) price per 1M tokens. */
+app.get('/api/models', (c) => c.json({ models: MODELS, sstRate: SST_RATE, batchDiscount: 0.5 }));
 
 /** Compute a summary for the given usage. */
 app.post('/api/calculate', async (c) => {
@@ -56,21 +52,11 @@ app.post('/api/calculate', async (c) => {
   }
   if (wanted.size === 0) return c.json({ error: 'Enter usage for at least one model.' }, 400);
 
-  const ids = [...wanted.keys()];
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, name, provider, price_cents_per_million FROM models
-      WHERE active = 1 AND id IN (${ids.map(() => '?').join(',')}) ORDER BY sort_order`,
-  )
-    .bind(...ids)
-    .all<ModelRow>();
-
-  if (results.length !== ids.length) {
-    const known = new Set(results.map((m) => m.id));
-    return c.json({ error: `Unknown model: ${ids.find((id) => !known.has(id))}` }, 400);
-  }
+  const unknown = [...wanted.keys()].find((id) => !MODEL_IDS.has(id));
+  if (unknown) return c.json({ error: `Unknown model: ${unknown}` }, 400);
 
   const totals = calculate(
-    results.map((model) => ({ model, tokensMillions: wanted.get(model.id)! })),
+    MODELS.filter((m) => wanted.has(m.id)).map((model) => ({ model, tokensMillions: wanted.get(model.id)! })),
     batch,
   );
 

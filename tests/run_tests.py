@@ -169,12 +169,15 @@ def main():
                 failures = [f"{type(e).__name__}: {e}".splitlines()[0]]
             duration = time.perf_counter() - t0
 
-            # Keep a screenshot of the final page state for the report.
+            # Keep a screenshot of the calculator (inputs + summary) for the report.
             shot = f"screenshots/{case['test_id']}.png"
             try:
-                driver.save_screenshot(str(report_dir / shot))
+                driver.find_element(By.CSS_SELECTOR, ".layout").screenshot(str(report_dir / shot))
             except Exception:
-                shot = None
+                try:
+                    driver.save_screenshot(str(report_dir / shot))
+                except Exception:
+                    shot = None
 
             # f) display pass/fail
             status = "PASS" if not failures else "FAIL"

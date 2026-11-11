@@ -5,11 +5,3 @@ compatibility_date = "2025-01-01"
 [vars]
 # Origin of the deployed Pages site, e.g. "https://ai-gateway.pages.dev". "*" allows any origin.
 ALLOWED_ORIGIN = "*"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "ai-gateway"
-# Replace with the id printed by `wrangler d1 create ai-gateway`.
-# (Any placeholder works for local development.)
-database_id = "00000000-0000-0000-0000-000000000000"
-migrations_dir = "migrations"

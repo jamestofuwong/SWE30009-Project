@@ -1,12 +1,7 @@
+import type { Model } from './models';
+
 export const SST_RATE = 0.06;
 export const BATCH_DISCOUNT = 0.5;
-
-export interface ModelRow {
-  id: string;
-  name: string;
-  provider: string;
-  price_cents_per_million: number;
-}
 
 export interface LineItem {
   modelId: string;
@@ -28,7 +23,7 @@ export interface Totals {
 
 /** All money is integer cents; each line is rounded to the cent before summing. */
 export function calculate(
-  usage: { model: ModelRow; tokensMillions: number }[],
+  usage: { model: Model; tokensMillions: number }[],
   batch: boolean,
 ): Totals {
   const factor = batch ? 1 - BATCH_DISCOUNT : 1;
@@ -36,9 +31,9 @@ export function calculate(
   let subtotalCents = 0;
 
   const items = usage.map(({ model, tokensMillions }): LineItem => {
-    const unit = model.price_cents_per_million * factor;
+    const unit = model.priceCents * factor;
     const costCents = Math.round(tokensMillions * unit);
-    listCents += Math.round(tokensMillions * model.price_cents_per_million);
+    listCents += Math.round(tokensMillions * model.priceCents);
     subtotalCents += costCents;
     return {
       modelId: model.id,

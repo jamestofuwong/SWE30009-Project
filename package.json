@@ -5,10 +5,9 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run db:migrate:local && concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
-    "db:migrate:local": "npm run db:migrate:local -w apps/api",
     "build": "npm run build -w apps/web",
     "typecheck": "npm run typecheck -w apps/api",
     "pretest:selenium": "[ -x tests/.venv/bin/python ] || (python3 -m venv tests/.venv && tests/.venv/bin/pip install -q -r tests/requirements.txt)",

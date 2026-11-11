@@ -15,6 +15,7 @@ from reportlab.graphics.charts.barcharts import VerticalBarChart
 from reportlab.graphics.charts.piecharts import Pie
 from reportlab.graphics.shapes import Drawing, Rect, String
 from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -296,7 +297,8 @@ def build(report_dir):
         w = (CONTENT_W - 6 * mm) / 2
         cells = []
         for r in shots:
-            img = Image(str(report_dir / r["screenshot"]), width=w, height=w * 900 / 1280)
+            iw, ih = ImageReader(str(report_dir / r["screenshot"])).getSize()
+            img = Image(str(report_dir / r["screenshot"]), width=w, height=w * ih / iw)
             border = GREEN if r["status"] == "PASS" else RED
             cell = Table([[Paragraph(f'<b>{r["id"]}</b>  {r["status"]}', SMALL)], [img]], colWidths=[w])
             cell.setStyle(TableStyle([("BOX", (0, 0), (-1, -1), 1.2, border), ("BACKGROUND", (0, 0), (0, 0), SOFT_GREEN if r["status"] == "PASS" else SOFT_RED)]))

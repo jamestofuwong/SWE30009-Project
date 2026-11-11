@@ -63,8 +63,8 @@ jobs:
       # e) + f) Start the web server and run the tests in ONE step.
       #    On Windows the background server can be lost between steps, so we
       #    keep it alive for exactly as long as the tests need it.
-      #    "npm run dev" applies the local D1 migrations, then starts the
-      #    API (port 8787) and the frontend (port 5173).
+      #    "npm run dev" starts the API (port 8787) and the
+      #    frontend (port 5173).
       #    On Windows, npm is a .cmd file, so we start "npm.cmd".
       #    The test script reads tests/test_cases.csv, opens Chrome, loads the
       #    app, runs every test case and prints PASS/FAIL for each. It also
